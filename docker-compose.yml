@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  shadowgate:
+    build: .
+    container_name: shadowgate
+    restart: unless-stopped
+    ports:
+      - "${PROXY_PORT:-8080}:8080"        # Proxy
+      - "${HTTP_HONEYPOT_PORT:-8443}:8443" # HTTP Honeypot
+      - "${SSH_HONEYPOT_PORT:-2222}:2222"  # SSH Honeypot
+      - "${FTP_HONEYPOT_PORT:-2121}:2121"  # FTP Honeypot
+      - "${SMTP_HONEYPOT_PORT:-2525}:2525" # SMTP Honeypot
+      - "${DASHBOARD_PORT:-9090}:9090"     # Dashboard
+    volumes:
+      - shadowgate-logs:/app/logs
+      - ./config:/app/config:ro
+    env_file:
+      - .env
+    environment:
+      - SHADOWGATE_LOG_LEVEL=${LOG_LEVEL:-INFO}
+    networks:
+      - shadowgate-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  shadowgate-logs:
+    driver: local
+
+networks:
+  shadowgate-net:
+    driver: bridge

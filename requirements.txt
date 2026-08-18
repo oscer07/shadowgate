@@ -1,0 +1,7 @@
+# ShadowGate Dependencies
+aiohttp>=3.9.0
+flask>=3.0.0
+click>=8.1.0
+PyYAML>=6.0.1
+structlog>=23.2.0
+aiohttp>=3.9.0

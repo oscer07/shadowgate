@@ -1,0 +1,90 @@
+# ShadowGate Default Configuration
+# Override with environment variables prefixed SHADOWGATE_
+
+proxy:
+  host: "0.0.0.0"
+  port: 8080
+  auth:
+    enabled: true
+    users:
+      - username: "admin"
+        password: "changeme"
+    api_keys:
+      - "default-api-key-change-me"
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+    burst_size: 10
+  acl:
+    whitelist: []  # Empty = allow all
+    blacklist: []
+    blocked_domains: []
+  timeout: 30
+  max_connections: 100
+  buffer_size: 65536
+
+honeypot:
+  http:
+    enabled: true
+    host: "0.0.0.0"
+    port: 8443
+    server_header: "Apache/2.4.41 (Ubuntu)"
+    fake_apps:
+      - "/wp-login.php"
+      - "/admin"
+      - "/phpmyadmin"
+      - "/.env"
+      - "/api/v1/users"
+  ssh:
+    enabled: true
+    host: "0.0.0.0"
+    port: 2222
+    server_version: "SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.5"
+    fake_hostname: "prod-server-01"
+    max_auth_attempts: 3
+  ftp:
+    enabled: true
+    host: "0.0.0.0"
+    port: 2121
+    banner: "220 FTP Server Ready"
+    max_login_attempts: 3
+  smtp:
+    enabled: true
+    host: "0.0.0.0"
+    port: 2525
+    banner: "220 mail.example.com ESMTP Postfix"
+    max_message_size: 10485760  # 10MB
+
+dashboard:
+  host: "127.0.0.1"
+  port: 9090
+  secret_key: "change-this-in-production"
+  refresh_interval: 5  # seconds
+  max_events: 1000
+
+logging:
+  level: "INFO"
+  directory: "./logs"
+  max_file_size: "50MB"
+  max_files: 10
+  format: "json"  # json or text
+  outputs:
+    - "file"
+    - "stdout"
+
+alerts:
+  enabled: false
+  cooldown: 300  # seconds between duplicate alerts
+  slack:
+    webhook_url: ""
+    channel: "#security-alerts"
+  discord:
+    webhook_url: ""
+  email:
+    smtp_host: ""
+    smtp_port: 587
+    use_tls: true
+    username: ""
+    password: ""
+    from_address: ""
+    to_addresses: []
