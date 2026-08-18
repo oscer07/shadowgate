@@ -14,7 +14,7 @@ Please review our Code of Conduct before contributing.
 
 ## Development Setup
 ```bash
-git clone https://github.com/shadowgate-project/shadowgate.git
+git clone https://github.com/oscer07/shadowgate.git
 cd shadowgate
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
