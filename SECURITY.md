@@ -5,11 +5,11 @@ Only the latest major release is actively supported for security updates.
 
 ## Reporting a Vulnerability
 Please DO NOT report security vulnerabilities on the public issue tracker.
-Send an email to security@shadowgate-project.org.
+Send an email to crimsonkix@gmail.com.
 
 ### What to expect
 - You will receive an acknowledgment within 48 hours.
-- We aim to fix vulnerabilities within 90 days.
+- We aim to fix vulnerabilities within 40 days.
 
 ## Scope
 - In Scope: Core proxy, honeypot, dashboard, and alerting systems.
