@@ -1,309 +1,242 @@
+/**
+ * ShadowGate Dashboard — Real-time monitoring frontend.
+ * v1.1.0
+ */
+
 class DashboardApp {
     constructor() {
-        this.eventsTableBody = document.getElementById('events-body');
-        this.lastEventTime = null;
-        this.protocolChart = null;
         this.pollInterval = 5000;
-        this.knownEventIds = new Set();
-        this.maxEventsDisplay = 100;
-        
-        // Protocol colors mapping
-        this.protoColors = {
-            'HTTP': '#3b82f6',
-            'SSH': '#10b981',
-            'FTP': '#f59e0b',
-            'SMTP': '#8b5cf6',
-            'PROXY': '#64748b'
-        };
+        this.chart = null;
+        this.lastEventCount = 0;
+        this.isConnected = true;
     }
 
     init() {
-        this.initCharts();
-        this.updateTime();
-        
-        // Initial fetch
+        this.initChart();
         this.fetchStats();
         this.fetchEvents();
-        
-        // Set intervals
-        setInterval(() => this.updateTime(), 1000);
+        this.fetchCredentials();
         setInterval(() => this.fetchStats(), this.pollInterval);
         setInterval(() => this.fetchEvents(), this.pollInterval);
+        setInterval(() => this.fetchCredentials(), this.pollInterval * 2);
+
+        // Export buttons
+        document.getElementById('export-json')?.addEventListener('click', () => {
+            window.location.href = '/api/export/json';
+        });
+        document.getElementById('export-csv')?.addEventListener('click', () => {
+            window.location.href = '/api/export/csv';
+        });
     }
 
-    updateTime() {
-        const now = new Date();
-        document.getElementById('current-time').textContent = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
-    }
-
-    formatTimestamp(isoString) {
-        if (!isoString) return 'Unknown';
-        
-        const date = new Date(isoString);
-        const now = new Date();
-        const diff = Math.floor((now - date) / 1000); // in seconds
-        
-        if (diff < 5) return 'just now';
-        if (diff < 60) return `${diff}s ago`;
-        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-        
-        return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    }
-
-    createProtocolBadge(protocol) {
-        const p = (protocol || 'UNKNOWN').toUpperCase();
-        let badgeClass = 'badge-proxy';
-        
-        if (p === 'HTTP') badgeClass = 'badge-http';
-        else if (p === 'SSH') badgeClass = 'badge-ssh';
-        else if (p === 'FTP') badgeClass = 'badge-ftp';
-        else if (p === 'SMTP') badgeClass = 'badge-smtp';
-        
-        return `<span class="badge ${badgeClass}">${p}</span>`;
-    }
-
-    initCharts() {
-        const ctx = document.getElementById('protocol-chart').getContext('2d');
-        Chart.defaults.color = '#94a3b8';
-        Chart.defaults.font.family = 'Inter, sans-serif';
-        
-        this.protocolChart = new Chart(ctx, {
+    initChart() {
+        const ctx = document.getElementById('protocolChart');
+        if (!ctx) return;
+        this.chart = new Chart(ctx.getContext('2d'), {
             type: 'doughnut',
             data: {
                 labels: [],
                 datasets: [{
                     data: [],
-                    backgroundColor: [],
+                    backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#6b7280', '#ef4444'],
                     borderWidth: 0,
-                    hoverOffset: 4
-                }]
+                    hoverOffset: 6,
+                }],
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                cutout: '65%',
                 plugins: {
                     legend: {
-                        position: 'right',
-                        labels: {
-                            padding: 20,
-                            boxWidth: 12
-                        }
+                        position: 'bottom',
+                        labels: { color: '#a1a1aa', padding: 16, font: { size: 12, family: 'Inter' } },
                     },
-                    tooltip: {
-                        backgroundColor: 'rgba(18, 18, 26, 0.9)',
-                        titleColor: '#e2e8f0',
-                        bodyColor: '#e2e8f0',
-                        borderColor: '#27273a',
-                        borderWidth: 1,
-                        padding: 10
-                    }
                 },
-                cutout: '70%'
-            }
+            },
         });
-    }
-
-    async fetchEvents() {
-        try {
-            const response = await fetch('/api/events?limit=50');
-            if (!response.ok) throw new Error('Network response was not ok');
-            const events = await response.json();
-            this.updateEventFeed(events);
-            this.updateCredentials(events);
-            this.updateStatus('Auto-updating...', 'online');
-        } catch (error) {
-            console.error('Failed to fetch events:', error);
-            this.updateStatus('Reconnecting...', 'offline');
-        }
     }
 
     async fetchStats() {
         try {
-            const response = await fetch('/api/stats');
-            if (!response.ok) throw new Error('Network response was not ok');
-            const stats = await response.json();
+            const res = await fetch('/api/stats');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const stats = await res.json();
             this.updateStatCards(stats);
-            this.updateCharts(stats);
+            this.updateChart(stats);
             this.updateTopAttackers(stats);
-        } catch (error) {
-            console.error('Failed to fetch stats:', error);
+            this.setConnected(true);
+        } catch (e) {
+            console.error('Stats fetch error:', e);
+            this.setConnected(false);
         }
     }
-    
-    updateStatus(msg, state) {
-        const el = document.getElementById('refresh-status');
-        el.textContent = msg;
-        if (state === 'offline') {
-            el.style.color = 'var(--accent-critical)';
-        } else {
-            el.style.color = 'var(--text-muted)';
+
+    async fetchEvents() {
+        try {
+            const res = await fetch('/api/events?limit=50');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const events = await res.json();
+            this.updateEventFeed(events);
+            this.setConnected(true);
+        } catch (e) {
+            console.error('Events fetch error:', e);
+            this.setConnected(false);
+        }
+    }
+
+    async fetchCredentials() {
+        try {
+            const res = await fetch('/api/credentials?limit=20');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const creds = await res.json();
+            this.updateCredentials(creds);
+        } catch (e) {
+            console.error('Credentials fetch error:', e);
         }
     }
 
     updateStatCards(stats) {
-        // Calculate total events
-        const total = Object.values(stats.event_types || {}).reduce((a, b) => a + b, 0);
-        document.getElementById('stat-total-events').textContent = total.toLocaleString();
-        
-        // Active attackers count
-        const activeAttackers = Object.keys(stats.top_ips || {}).length;
-        document.getElementById('stat-active-attackers').textContent = activeAttackers.toLocaleString();
-        
-        // Proxy requests (assuming event type 'PROXY_REQUEST')
-        const proxyReqs = (stats.event_types || {})['PROXY_REQUEST'] || 0;
-        document.getElementById('stat-proxy-requests').textContent = proxyReqs.toLocaleString();
-        
-        // Alerts
-        const alerts = (stats.event_types || {})['ALERT'] || 0;
-        document.getElementById('stat-alerts').textContent = alerts.toLocaleString();
+        const el = (id) => document.getElementById(id);
+        if (el('stat-total')) el('stat-total').textContent = this.formatNumber(stats.total_events || 0);
+        if (el('stat-attackers')) el('stat-attackers').textContent = this.formatNumber(stats.unique_ips || 0);
+        if (el('stat-buffer')) el('stat-buffer').textContent = this.formatNumber(stats.events_in_buffer || 0);
+        if (el('stat-credentials')) el('stat-credentials').textContent = this.formatNumber(stats.credentials_captured || 0);
     }
 
-    updateCharts(stats) {
+    updateChart(stats) {
+        if (!this.chart) return;
         const protocols = stats.protocols || {};
-        const labels = Object.keys(protocols);
-        const data = Object.values(protocols);
-        const colors = labels.map(l => this.protoColors[l.toUpperCase()] || this.protoColors['PROXY']);
-        
-        this.protocolChart.data.labels = labels;
-        this.protocolChart.data.datasets[0].data = data;
-        this.protocolChart.data.datasets[0].backgroundColor = colors;
-        this.protocolChart.update();
-    }
-
-    updateTopAttackers(stats) {
-        const list = document.getElementById('attacker-list');
-        const topIps = stats.top_ips || {};
-        
-        // Find max for bar scaling
-        const maxCount = Math.max(...Object.values(topIps), 1);
-        
-        list.innerHTML = '';
-        
-        for (const [ip, count] of Object.entries(topIps)) {
-            const width = Math.max(5, (count / maxCount) * 100);
-            
-            const li = document.createElement('li');
-            li.className = 'attacker-item';
-            li.innerHTML = `
-                <span class="attacker-ip">${ip}</span>
-                <div class="attacker-bar-container">
-                    <div class="attacker-bar" style="width: ${width}%"></div>
-                </div>
-                <span class="attacker-count">${count}</span>
-            `;
-            list.appendChild(li);
-        }
-        
-        if (Object.keys(topIps).length === 0) {
-            list.innerHTML = '<li style="color: var(--text-muted); font-size: 0.85rem;">No attackers recorded yet.</li>';
-        }
-    }
-
-    updateCredentials(events) {
-        const list = document.getElementById('credentials-list');
-        
-        // Filter for login attempts
-        const loginEvents = events.filter(e => 
-            e.event_type === 'LOGIN_ATTEMPT' && 
-            e.username
-        ).slice(0, 5); // Take top 5
-        
-        if (loginEvents.length === 0) {
-            if (list.children.length === 0) {
-                list.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 0.75rem;">No credentials captured yet.</div>';
-            }
-            return;
-        }
-        
-        list.innerHTML = '';
-        loginEvents.forEach(e => {
-            const div = document.createElement('div');
-            div.className = 'credential-item';
-            
-            const proto = e.protocol ? `[${e.protocol}]` : '';
-            const pwDisplay = e.password ? e.password : '<i>none</i>';
-            
-            div.innerHTML = `
-                <div><strong>${proto} ${e.src_ip || 'Unknown'}</strong></div>
-                <div>User: <span style="color: var(--text-main)">${e.username}</span></div>
-                <div>Pass: <span style="color: var(--accent-secondary)">${pwDisplay}</span></div>
-            `;
-            list.appendChild(div);
-        });
+        this.chart.data.labels = Object.keys(protocols).map(p => p.toUpperCase());
+        this.chart.data.datasets[0].data = Object.values(protocols);
+        this.chart.update('none');
     }
 
     updateEventFeed(events) {
-        // We assume events are returned newest first
-        if (!events || events.length === 0) return;
-        
-        // Find events we haven't seen yet
-        // In a real app we'd use proper IDs, using timestamp+IP as a crude ID here
-        const newEvents = [];
-        
-        for (const event of events) {
-            // Create a unique-ish ID
-            const eventId = `${event.timestamp}-${event.src_ip}-${event.event_type}`;
-            if (!this.knownEventIds.has(eventId)) {
-                newEvents.push(event);
-                this.knownEventIds.add(eventId);
-                
-                // Keep set size manageable
-                if (this.knownEventIds.size > 1000) {
-                    const toDelete = Array.from(this.knownEventIds).slice(0, 100);
-                    toDelete.forEach(id => this.knownEventIds.delete(id));
-                }
-            }
+        const feed = document.getElementById('event-feed');
+        if (!feed) return;
+
+        const newCount = events.length;
+        const hasNew = newCount !== this.lastEventCount;
+        this.lastEventCount = newCount;
+
+        const rows = events.map((evt, i) => {
+            const proto = (evt.protocol || 'unknown').toUpperCase();
+            const badge = this.createProtocolBadge(proto);
+            const time = this.formatTimestamp(evt.timestamp);
+            const ip = evt.source_ip || evt.src_ip || 'N/A';
+            const type = evt.event_type || '';
+            const detail = this.getEventDetail(evt);
+            const animClass = hasNew && i < 3 ? 'event-row-new' : '';
+
+            return `<tr class="event-row ${animClass}">
+                <td class="time-cell">${time}</td>
+                <td>${badge}</td>
+                <td class="ip-cell">${this.escapeHtml(ip)}</td>
+                <td>${this.escapeHtml(type)}</td>
+                <td class="detail-cell">${this.escapeHtml(detail)}</td>
+            </tr>`;
+        }).join('');
+
+        feed.innerHTML = rows || '<tr><td colspan="5" class="empty-state">Waiting for events...</td></tr>';
+    }
+
+    updateTopAttackers(stats) {
+        const container = document.getElementById('top-attackers');
+        if (!container) return;
+        const topIps = stats.top_ips || {};
+        const entries = Object.entries(topIps);
+        if (!entries.length) {
+            container.innerHTML = '<div class="empty-state">No attackers detected</div>';
+            return;
         }
-        
-        // If it's the first load, don't animate all of them
-        const isFirstLoad = this.eventsTableBody.children.length === 0;
-        
-        // Process in reverse to add oldest first (among the new ones) to the top
-        for (let i = newEvents.length - 1; i >= 0; i--) {
-            const event = newEvents[i];
-            const row = document.createElement('tr');
-            
-            if (!isFirstLoad) {
-                row.className = 'new-row';
-            }
-            
-            // Build details string
-            let details = event.message || '';
-            if (event.url) details = event.url;
-            else if (event.command) details = `CMD: ${event.command}`;
-            
-            // Truncate long details
-            if (details.length > 50) details = details.substring(0, 47) + '...';
-            
-            row.innerHTML = `
-                <td class="cell-time" title="${event.timestamp}">${this.formatTimestamp(event.timestamp)}</td>
-                <td>${this.createProtocolBadge(event.protocol)}</td>
-                <td class="cell-ip">${event.src_ip || '-'}</td>
-                <td>${event.event_type || '-'}</td>
-                <td title="${event.message || ''}">${details}</td>
-            `;
-            
-            this.eventsTableBody.insertBefore(row, this.eventsTableBody.firstChild);
+        const maxCount = Math.max(...entries.map(([, c]) => c));
+        container.innerHTML = entries.slice(0, 10).map(([ip, count]) => {
+            const pct = Math.max(5, (count / maxCount) * 100);
+            return `<div class="attacker-row">
+                <span class="attacker-ip">${this.escapeHtml(ip)}</span>
+                <div class="attacker-bar-bg"><div class="attacker-bar" style="width:${pct}%"></div></div>
+                <span class="attacker-count">${count}</span>
+            </div>`;
+        }).join('');
+    }
+
+    updateCredentials(creds) {
+        const container = document.getElementById('recent-creds');
+        if (!container) return;
+        if (!creds.length) {
+            container.innerHTML = '<div class="empty-state">No credentials captured</div>';
+            return;
         }
-        
-        // Trim old events
-        while (this.eventsTableBody.children.length > this.maxEventsDisplay) {
-            this.eventsTableBody.removeChild(this.eventsTableBody.lastChild);
-        }
-        
-        // Update relative times for existing rows
-        const rows = this.eventsTableBody.querySelectorAll('tr');
-        rows.forEach(row => {
-            const timeCell = row.querySelector('.cell-time');
-            if (timeCell && timeCell.title) {
-                timeCell.textContent = this.formatTimestamp(timeCell.title);
-            }
-        });
+        container.innerHTML = creds.slice(0, 15).map(cred => {
+            const proto = (cred.protocol || '').toUpperCase();
+            const badge = this.createProtocolBadge(proto);
+            return `<div class="cred-row">
+                <span class="cred-time">${this.formatTimestamp(cred.timestamp)}</span>
+                ${badge}
+                <span class="cred-user">${this.escapeHtml(cred.username || '-')}</span>
+                <span class="cred-sep">:</span>
+                <span class="cred-pass">${this.escapeHtml(cred.password || '-')}</span>
+                <span class="cred-ip">${this.escapeHtml(cred.source_ip || '')}</span>
+            </div>`;
+        }).join('');
+    }
+
+    // --- Helpers ---
+
+    createProtocolBadge(proto) {
+        const colors = {
+            HTTP: '#3b82f6', SSH: '#10b981', FTP: '#f59e0b',
+            SMTP: '#8b5cf6', PROXY: '#6b7280', TELNET: '#ec4899',
+            UNKNOWN: '#52525b',
+        };
+        const color = colors[proto] || colors.UNKNOWN;
+        return `<span class="protocol-badge" style="--badge-color:${color}">${proto}</span>`;
+    }
+
+    getEventDetail(evt) {
+        if (evt.command) return evt.command;
+        if (evt.username) return `user: ${evt.username}`;
+        if (evt.path) return `${evt.method || 'GET'} ${evt.path}`;
+        if (evt.url) return evt.url;
+        if (evt.target) return evt.target;
+        return '';
+    }
+
+    formatTimestamp(ts) {
+        if (!ts) return '-';
+        const date = new Date(ts);
+        if (isNaN(date.getTime())) return ts;
+        const now = Date.now();
+        const diff = Math.floor((now - date.getTime()) / 1000);
+        if (diff < 5) return 'just now';
+        if (diff < 60) return `${diff}s ago`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
+    }
+
+    formatNumber(n) {
+        if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+        if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+        return n.toString();
+    }
+
+    escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    setConnected(connected) {
+        const dot = document.getElementById('status-dot');
+        const text = document.getElementById('status-text');
+        if (dot) dot.className = connected ? 'status-dot online' : 'status-dot offline';
+        if (text) text.textContent = connected ? 'Connected' : 'Reconnecting...';
+        this.isConnected = connected;
     }
 }
 
-// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     const app = new DashboardApp();
     app.init();

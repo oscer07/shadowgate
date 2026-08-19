@@ -1,76 +1,133 @@
 <p align="center">
   <h1 align="center">🛡️ ShadowGate</h1>
   <p align="center"><strong>Private Proxy Server & Honeypot Toolkit</strong></p>
+  <p align="center">v1.1.0 &bull; Open Source &bull; Self-Hosted</p>
   <p align="center">
-    <a href="#features">Features</a> •
-    <a href="#quick-start">Quick Start</a> •
-    <a href="#configuration">Configuration</a> •
-    <a href="#deployment">Deployment</a> •
+    <a href="#features">Features</a> &bull;
+    <a href="#quick-start">Quick Start</a> &bull;
+    <a href="#configuration">Configuration</a> &bull;
+    <a href="#deployment">Deployment</a> &bull;
     <a href="#contributing">Contributing</a>
   </p>
 </p>
 
+---
+
 ## Overview
-ShadowGate is a self-hosted cybersecurity toolkit combining a private authenticated proxy server with a multi-protocol honeypot system. Built for security researchers, SOC teams, and network administrators.
+
+ShadowGate is a self-hosted cybersecurity toolkit combining a **private authenticated proxy server** with a **multi-protocol honeypot system**. Built for security researchers, SOC teams, and network administrators.
 
 ## Features
-- 🔒 **Private Proxy**: Authenticated, rate-limited, IP whitelist, HTTPS tunneling, bandwidth tracking.
-- 🍯 **Honeypot**: HTTP/SSH/FTP/SMTP emulation, attacker fingerprinting, GeoIP, session recording.
-- 📊 **Dashboard**: Real-time event feed, charts, dark theme.
-- 🚨 **Alerting**: Slack, Discord, Email webhooks.
-- 🐳 **Docker Support**: Easy deployment with Docker and Docker Compose.
+
+### 🔒 Private Proxy Server
+- HTTP/HTTPS forward proxy with CONNECT tunneling
+- Basic Auth + API key authentication
+- Token-bucket rate limiting (async-safe)
+- IP whitelist/blacklist with CIDR support
+- Domain filtering & bandwidth tracking
+- Upstream proxy chaining (SOCKS5/HTTP)
+
+### 🍯 Multi-Protocol Honeypot
+- **HTTP** — WordPress, phpMyAdmin, Joomla, Drupal, admin panels, .env decoys, fake APIs
+- **SSH** — Interactive shell with 20+ commands, session recording
+- **FTP** — Credential capture, fake directory listings
+- **SMTP** — Spam relay detection, full email capture
+- **Telnet** — BusyBox/IoT device emulation *(new in v1.1.0)*
+- Attacker fingerprinting with GeoIP & scanner detection
+
+### 📊 Real-Time Dashboard
+- Dark-theme SOC monitoring UI
+- Live event feed with protocol badges
+- Protocol distribution chart
+- Top attackers ranking
+- Captured credentials viewer
+- CSV/JSON event export
+- Optional login authentication
+
+### 🚨 Alert System
+- Slack, Discord, Email notifications
+- Custom webhook message templates
+- Cooldown deduplication
 
 ## Quick Start
-### pip install
+
 ```bash
-pip install shadowgate
+# Clone and install
+git clone https://github.com/YOUR_USERNAME/shadowgate.git
+cd shadowgate
+pip install -e .
+
+# Run everything
 shadowgate all
+
+# Or individual components
+shadowgate proxy --port 8080
+shadowgate honeypot --protocols http,ssh,telnet
+shadowgate dashboard --port 9090
 ```
 
-### docker-compose
+### Docker
+
 ```bash
+cp .env.example .env
 docker-compose up -d
 ```
 
-## Architecture
-```mermaid
-graph TD
-    A[Internet] -->|Proxy Traffic| B(Proxy Server)
-    A -->|Attack Traffic| C(Honeypot System)
-    B --> D{Structured Logging}
-    C --> D
-    D --> E[(Database)]
-    E --> F[Dashboard]
-    D --> G[Alerting System]
-```
+## Default Ports
 
-## CLI Usage
-- `shadowgate proxy`: Start only the proxy server.
-- `shadowgate honeypot`: Start only the honeypot system.
-- `shadowgate dashboard`: Start the dashboard.
-- `shadowgate all`: Start all components.
+| Service | Port |
+|---------|------|
+| Proxy | 8080 |
+| HTTP Honeypot | 8443 |
+| SSH Honeypot | 2222 |
+| FTP Honeypot | 2121 |
+| SMTP Honeypot | 2525 |
+| Telnet Honeypot | 2323 |
+| Dashboard | 9090 |
 
 ## Configuration
-Configuration is managed via a YAML config file with environment variable overrides.
-Example `config.yaml`:
-```yaml
-proxy:
-  port: 8080
-  auth_enabled: true
+
+ShadowGate uses YAML configuration with environment variable overrides.
+
+```bash
+# Override any setting with SHADOWGATE_ prefix
+export SHADOWGATE_PROXY__PORT=9090
+export SHADOWGATE_HONEYPOT__SSH__PORT=22222
 ```
 
-## Deployment
-ShadowGate can be deployed via Docker, Docker Compose, or on bare metal environments.
+See `config/default.yaml` for all options.
+
+## Architecture
+
+```
+shadowgate/
+├── proxy/        # Private forward proxy
+├── honeypot/     # Multi-protocol honeypots (HTTP, SSH, FTP, SMTP, Telnet)
+├── dashboard/    # Flask web UI + REST API
+├── logging/      # Structured JSON logging + alerts
+└── config.py     # YAML + env var configuration
+```
 
 ## API Endpoints
-- `GET /api/v1/events` - Get event feed
-- `GET /api/v1/stats` - Get dashboard statistics
 
-## Security Considerations
-**WARNING:** Only deploy ShadowGate on networks you are authorized to monitor. Ensure responsible use and comply with local laws and regulations.
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/events` | List events (filterable by protocol, type) |
+| `GET /api/stats` | Aggregate statistics |
+| `GET /api/top-attackers` | Top attacker IPs |
+| `GET /api/credentials` | Captured credentials |
+| `GET /api/export/json` | Export events as JSON |
+| `GET /api/export/csv` | Export events as CSV |
+| `GET /api/health` | Health check |
+
+## ⚠️ Legal Notice
+
+Deploy only on networks you own or have authorization to monitor. Comply with local laws regarding network monitoring and data collection.
 
 ## Contributing
-Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
-MIT License. See [LICENSE](LICENSE) for more information.
+
+MIT — see [LICENSE](LICENSE).

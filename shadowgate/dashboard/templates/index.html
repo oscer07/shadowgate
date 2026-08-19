@@ -4,111 +4,89 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ShadowGate Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header class="topbar">
         <div class="logo">
-            <span class="logo-icon">🛡️</span>
+            <span class="icon">🛡️</span>
             <h1>ShadowGate</h1>
         </div>
-        <div class="status-indicators">
-            <div class="status">
-                <span class="status-dot online"></span>
-                Proxy: Online
-            </div>
-            <div class="status">
-                <span class="status-dot online"></span>
-                Honeypot: Online
-            </div>
+        <div class="status">
+            <div id="status-dot" class="status-dot"></div>
+            <span id="status-text">Connecting...</span>
         </div>
-        <div class="timestamp" id="current-time"></div>
+        <div class="actions">
+            <button id="export-json" class="btn">Export JSON</button>
+            <button id="export-csv" class="btn">Export CSV</button>
+            <a href="/logout" class="btn btn-outline">Logout</a>
+        </div>
     </header>
 
-    <main class="container">
-        <!-- Stats Row -->
-        <section class="stats-row">
-            <div class="stat-card">
-                <div class="stat-icon">📊</div>
-                <div class="stat-info">
-                    <div class="stat-label">Total Events</div>
-                    <div class="stat-value" id="stat-total-events">0</div>
-                </div>
+    <main class="dashboard-container">
+        <section class="stat-cards">
+            <div class="card stat-card">
+                <h3>Total Events</h3>
+                <div id="stat-total" class="stat-value">0</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon warning">👤</div>
-                <div class="stat-info">
-                    <div class="stat-label">Active Attackers</div>
-                    <div class="stat-value" id="stat-active-attackers">0</div>
-                </div>
+            <div class="card stat-card">
+                <h3>Active Attackers</h3>
+                <div id="stat-attackers" class="stat-value">0</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">🌐</div>
-                <div class="stat-info">
-                    <div class="stat-label">Proxy Requests</div>
-                    <div class="stat-value" id="stat-proxy-requests">0</div>
-                </div>
+            <div class="card stat-card">
+                <h3>Events in Buffer</h3>
+                <div id="stat-buffer" class="stat-value">0</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon critical">🚨</div>
-                <div class="stat-info">
-                    <div class="stat-label">Alerts Triggered</div>
-                    <div class="stat-value" id="stat-alerts">0</div>
-                </div>
+            <div class="card stat-card">
+                <h3>Credentials Captured</h3>
+                <div id="stat-credentials" class="stat-value">0</div>
             </div>
         </section>
 
-        <!-- Main Content -->
-        <section class="content-grid">
-            <!-- Left Column: Live Feed -->
-            <div class="feed-column card">
-                <div class="card-header">
+        <section class="main-content">
+            <div class="left-col">
+                <div class="card feed-card">
                     <h2>Live Event Feed</h2>
-                    <div class="feed-controls">
-                        <span class="indicator pulsing"></span> Live
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Protocol</th>
+                                    <th>Source IP</th>
+                                    <th>Type</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="event-feed">
+                                <tr><td colspan="5" class="empty-state">Waiting for events...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="table-container">
-                    <table id="events-table">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Protocol</th>
-                                <th>Source IP</th>
-                                <th>Event Type</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody id="events-body">
-                            <!-- Events populated via JS -->
-                        </tbody>
-                    </table>
-                </div>
             </div>
-
-            <!-- Right Column: Charts & Stats -->
-            <div class="stats-column">
+            
+            <div class="right-col">
                 <div class="card chart-card">
                     <h2>Protocol Distribution</h2>
                     <div class="chart-container">
-                        <canvas id="protocol-chart"></canvas>
+                        <canvas id="protocolChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="card attackers-card">
+                    <h2>Top Attackers</h2>
+                    <div id="top-attackers" class="attackers-list">
+                        <div class="empty-state">No attackers detected</div>
                     </div>
                 </div>
 
-                <div class="card top-attackers-card">
-                    <h2>Top Attackers</h2>
-                    <ul class="attacker-list" id="attacker-list">
-                        <!-- Attackers populated via JS -->
-                    </ul>
-                </div>
-
-                <div class="card credentials-card">
+                <div class="card creds-card">
                     <h2>Recent Credentials</h2>
-                    <div class="credentials-list" id="credentials-list">
-                        <!-- Credentials populated via JS -->
+                    <div id="recent-creds" class="creds-list">
+                        <div class="empty-state">No credentials captured</div>
                     </div>
                 </div>
             </div>
@@ -116,10 +94,10 @@
     </main>
 
     <footer>
-        <div class="version">ShadowGate v1.0.0</div>
-        <div class="refresh-indicator" id="refresh-status">Auto-updating...</div>
+        <p>ShadowGate v1.1.0</p>
     </footer>
 
-    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/dashboard.js"></script>
 </body>
 </html>
